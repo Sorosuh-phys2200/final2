@@ -1,0 +1,72 @@
+/*
+* The program solves the following
+* first order differential equation, which describes
+* an oscillating pendulum
+*
+* d^2 phi/ d tau^2 + (1 - a/l*omega^2*sin(omega*tau))*sin(phi) = 0
+*
+* Here, phi is the angle between the pendulum's rod and the
+* the vertical down direction. Omega is the frequency of the pendulum's
+* natural oscillations.
+*
+* The step-size of the integrator is automatically
+* adjusted by the controller to maintain the
+* requested accuracy
+*/
+#include <stdio.h>
+#include <math.h>
+#include <gsl/gsl_errno.h>
+#include <gsl/gsl_odeiv2.h>
+int
+func (double tau, const double y[], double f[], void *params)
+{
+    double Omega = *(double *) params;
+    f[0] = y[1];
+    f[1] = -(1 - 0.01 * Omega * Omega * sin (Omega * tau)) * sin (y[0]);
+    return GSL_SUCCESS;
+}
+
+int
+main (void)
+{
+    size_t neqs = 2;            /* number of equations */
+    double eps_abs = 1.e-8, eps_rel = 0.;       /* desired precision */
+    double stepsize = 1e-6;     /* initial integration step */
+    double Omega = 145.;        /* frequency */
+    double t = 0., t1 = 40.;    /* time interval */
+    int status;
+/*
+* Initial conditions
+*/
+    double y[2] = { 0.99 * M_PI, 0. };  /* for res1 */
+/*
+* Explicit embedded Runge-Kutta-Fehlberg (4,5) method.
+* This method is a good general-purpose integrator.
+*/
+    gsl_odeiv2_step *s = gsl_odeiv2_step_alloc (gsl_odeiv2_step_rkf45, neqs);
+    gsl_odeiv2_control *c = gsl_odeiv2_control_y_new (eps_abs,
+                                                      eps_rel);
+    gsl_odeiv2_evolve *e = gsl_odeiv2_evolve_alloc (neqs);
+    gsl_odeiv2_system sys = { func, NULL, neqs, &Omega };
+/*
+* Evolution loop
+*/
+    while (t < t1)
+    {
+        status = gsl_odeiv2_evolve_apply (e, c, s, &sys, &t,
+                                          t1, &stepsize, y);
+        if (status != GSL_SUCCESS)
+        {
+            printf ("Troubles: % .5e % .5e % .5e\n", t, y[0], y[1]);
+            break;
+        }
+        printf ("% .5e % .5e % .5e\n", t, y[0], y[1]);
+    }
+    gsl_odeiv2_evolve_free (e);
+    gsl_odeiv2_control_free (c);
+    gsl_odeiv2_step_free (s);
+    return 0;
+}
+
+/*gnuplot p "res1" u 1:2 w l */
+/*try Omega 100 to 200 to see what the graphs look like */
